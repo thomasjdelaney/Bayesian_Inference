@@ -18,6 +18,19 @@ parser.add_argument('-n', '--num_data_points', help='The number of data points t
 parser.add_argument('-d', '--debug', help='Enter debug mode.', action='store_true', default=False)
 args = parser.parse_args()
 
+def getBetaMode(beta_distn):
+    a, b = beta_distn.args
+    if (a == 1) & (b == 1):
+        print(dt.datetime.now().isoformat() + ' WARN: ' + 'Distribution is uniform along (0,1)!')
+        mode = np.random.rand()
+    elif (a == 1) & (b > 1):
+        mode = 0
+    elif (a > 1) & (b == 1):
+        mode = 1
+    else:
+        mode = (a - 1.0)/(a + b - 2.0)
+    return mode
+
 def getTrueDistn(mu):
     return binom(1, mu)
 
@@ -68,7 +81,7 @@ def main():
     plt.show(block=False)
     print(dt.datetime.now().isoformat() + ' INFO: ' + 'Done.')
     print(dt.datetime.now().isoformat() + ' INFO: ' + 'true mu = ' + str(args.true_mu))
-    print(dt.datetime.now().isoformat() + ' INFO: ' + 'MAP estimated mu = ' + str(posterior_distn.mean()))
+    print(dt.datetime.now().isoformat() + ' INFO: ' + 'MAP estimated mu = ' + str(getBetaMode(posterior_distn)))
 
 if not(args.debug):
     main()
