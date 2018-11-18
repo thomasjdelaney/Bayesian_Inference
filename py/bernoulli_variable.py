@@ -24,9 +24,9 @@ def getBetaMode(beta_distn):
         print(dt.datetime.now().isoformat() + ' WARN: ' + 'Distribution is uniform along (0,1)!')
         mode = np.random.rand()
     elif (a == 1) & (b > 1):
-        mode = 0
+        mode = 0.0
     elif (a > 1) & (b == 1):
-        mode = 1
+        mode = 1.0
     else:
         mode = (a - 1.0)/(a + b - 2.0)
     return mode
