@@ -11,7 +11,7 @@ import datetime as dt
 from scipy.stats import beta, binom
 
 # command line arguments
-parser = argparse.ArgumentParser(description='Demonstrate Bayesian inference.')
+parser = argparse.ArgumentParser(description='Demonstrate Bayesian inference for the parameter of a Bernoulli distribution.')
 parser.add_argument('-t', '--true_mu', help='True mean of Bernoulli distn.', type=float, default=0.2)
 parser.add_argument('-p', '--prior_params', help='The parameters of the beta prior', type=float, default=[10,10], nargs=2)
 parser.add_argument('-n', '--num_data_points', help='The number of data points to sample from true distn.', type=int, default=100)
@@ -71,8 +71,8 @@ def main():
     plt.show(block=False)
     print(dt.datetime.now().isoformat() + ' INFO: ' + 'Integrating data and plotting posterior distribution...')
     for i in range(0, x_data.shape[0]):
-        posterior_distn = getPosteriorDistn(args.prior_params[0], args.prior_params[1], x_data[:i])
-        posterior_probabilities = posterior_distn.pdf(possible_mu_values)
+        posterior_distribution = getPosteriorDistn(args.prior_params[0], args.prior_params[1], x_data[:i])
+        posterior_probabilities = posterior_distribution.pdf(possible_mu_values)
         plotPosteriorDistn(posterior_probabilities, possible_mu_values, i+1)
         plt.pause(0.05)
     print(dt.datetime.now().isoformat() + ' INFO: ' + 'Plotting true mu...')
@@ -81,7 +81,7 @@ def main():
     plt.show(block=False)
     print(dt.datetime.now().isoformat() + ' INFO: ' + 'Done.')
     print(dt.datetime.now().isoformat() + ' INFO: ' + 'true mu = ' + str(args.true_mu))
-    print(dt.datetime.now().isoformat() + ' INFO: ' + 'MAP estimated mu = ' + str(getBetaMode(posterior_distn)))
+    print(dt.datetime.now().isoformat() + ' INFO: ' + 'MAP estimated mu = ' + str(getBetaMode(posterior_distribution)))
 
 if not(args.debug):
     main()
