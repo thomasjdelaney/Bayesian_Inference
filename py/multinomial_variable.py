@@ -29,7 +29,7 @@ def getTriangularBarycentricMesh(subdiv=8, tol=1.e-10):
         `subdiv` (int): Number of recursive mesh subdivisions to create.
         `tol` (float): tolerance
     '''
-    _corners = np.array([[0, 0], [1, 0], [0.5, 0.75**0.5]])
+    _corners = np.array([[0, 0], [1, 0], [0.5, np.sqrt(0.75)]])
     _triangle = tri.Triangulation(_corners[:, 0], _corners[:, 1])
     _midpoints = [(_corners[(i + 1) % 3] + _corners[(i + 2) % 3])/2.0 for i in range(3)]
     refiner = tri.UniformTriRefiner(_triangle)
@@ -43,7 +43,7 @@ def getTriangularBarycentricMesh(subdiv=8, tol=1.e-10):
         bary_trimesh[i] = np.clip(s, tol, 1.0 - tol)
     return bary_trimesh, trimesh
 
-def drawPdfContours(dist, bary_trimesh, cart_trimesh, border=False, nlevels=200, subdiv=8, **kwargs):
+def drawPdfContours(dist, bary_trimesh, cart_trimesh, nlevels=50, **kwargs):
     '''Draws pdf contours over an equilateral triangle (2-simplex).
     Arguments:
         `dist`: A distribution instance with a `pdf` method.
@@ -52,13 +52,11 @@ def drawPdfContours(dist, bary_trimesh, cart_trimesh, border=False, nlevels=200,
         `nlevels` (int): Number of contours to draw.
         kwargs: Keyword args passed on to `plt.triplot`.
     '''
-    from matplotlib import ticker, cm
-    import math
     pvals = dist.pdf(bary_trimesh.T)
     plt.tricontourf(cart_trimesh, pvals, nlevels, **kwargs)
     plt.axis('equal')
     plt.xlim(0, 1)
-    plt.ylim(0, 0.75**0.5)
+    plt.ylim(0, np.sqrt(0.75))
     plt.axis('off')
     plt.title(r'$\alpha$ = (%.3f, %.3f, %.3f)' % tuple(dist.alpha))
 
@@ -97,7 +95,9 @@ def main():
     print(dt.datetime.now().isoformat() + ' INFO: ' + 'Integrating data and plotting posterior distribution...')
     for i in range(0, x_data.shape[0]):
         posterior_distribution = getPosteriorDistn(args.prior_params, x_data[:i])
-        drawPdfContours(posterior_distribution, bary_trimesh, cart_trimesh)
+        mesh_pdf_values = posterior_distribution.pdf(bary_trimesh.T)
+        plt.tricontourf(cart_trimesh, mesh_pdf_values, 50)
+        plt.title(r'$\alpha$ = (%.3f, %.3f, %.3f)' % tuple(posterior_distribution.alpha))
         plt.pause(0.05)
     print(dt.datetime.now().isoformat() + ' INFO: ' + 'Done.')
     print(dt.datetime.now().isoformat() + ' INFO: ' + 'true multinomial params = ' + str(true_distribution.p))
