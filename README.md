@@ -16,7 +16,7 @@ For the default examples run:
 
 * python -i py/bernoulli_variable.py
 * python -i py/multinomial_variable.py
-* python -i py/guassian_variable.py
+* python -i py/gaussian_variable.py
 
 
 TODO: Prevent Gamma function overflow in gaussian_variable.py, extend multinomial_variable to more than three categories.
