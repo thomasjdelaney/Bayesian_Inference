@@ -6,7 +6,6 @@ Useful lines to include for editing:
     execfile(os.path.join(os.environ['HOME'], '.pythonrc'))
 """
 import os
-execfile(os.path.join(os.environ['HOME'], '.pythonrc'))
 import argparse
 import numpy as np
 import matplotlib.pyplot as plt
