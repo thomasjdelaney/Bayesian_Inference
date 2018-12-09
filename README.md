@@ -19,4 +19,4 @@ For the default examples run:
 * python -i py/gaussian_variable.py
 
 
-TODO: Prevent Gamma function overflow in gaussian_variable.py, extend multinomial_variable to more than three categories.
+TODO: Prevent Gamma function overflow in gaussian_variable.py, extend multinomial_variable to more than three categories, prevent warning in poisson script, get suitable x axis range from true lambda in poisson script.

@@ -4,6 +4,7 @@ Useful lines to include for editing:
     execfile(os.path.join(os.environ['HOME'], '.pythonrc'))
 """
 import os
+execfile(os.path.join(os.environ['HOME'], '.pythonrc'))
 import argparse
 import numpy as np
 import matplotlib.pyplot as plt
@@ -37,43 +38,69 @@ def getGammaMode(gamma_distn):
         mode = (alpha - 1)/beta
     return mode
 
-def plotPriorDistn(prior_probs, x_axis_points):
+def plotPriorDistn(prior_distn, x_axis_points):
+    prior_probs = prior_distn.pdf(x_axis_points)
     plt.plot(x_axis_points, prior_probs, color='g')
     plt.fill_between(x_axis_points, prior_probs, color='green', alpha=0.3, label='prior pdf')
     plt.xlabel('$\lambda$'); plt.ylabel('$p(\lambda|\mathbf{x})$')
 
-def plotPoissonDistn(poisson_probs, x_axis_points):
-    plt.step(x_axis_points, poisson_probs, color='blue', where='mid')
+def plotPoissonDistn(poisson_distn, x_axis_points, colour='blue', **kwargs):
+    poisson_probs = poisson_distn.pmf(x_axis_points)
+    plt.step(x_axis_points, poisson_probs, color=colour, where='mid', **kwargs)
     plt.xlabel('$x$'); plt.ylabel('$p(x)$')
 
-def plotPosteriorDistn(posterior_probs, x_axis_points, num_data_points):
-	if num_data_points == 1:
-		plt.plot(x_axis_points, posterior_probs, 'r', alpha=0.3, label='posterior pdf')
-	else:
-		plt.plot(x_axis_points, posterior_probs, 'r', alpha=0.3)
-	plt.title('Number of data points used: ' + str(num_data_points))
+def plotPosteriorDistn(posterior_distn, x_axis_points, num_data_points, **kwargs):
+    posterior_probs = posterior_distn.pdf(x_axis_points)
+    plt.plot(x_axis_points, posterior_probs, 'r', alpha=0.3, **kwargs)
+    plt.title('Number of data points used: ' + str(num_data_points))
 
-true_distn = getTrueDistn(args.true_lambda)
-x_data = true_distn.rvs(size=args.num_data_points)
-prior_distn = getPriorDistn(args.prior_params[0], args.prior_params[1])
-x_axis_points = np.linspace(0, 10, 1000)
-x_axis_discrete = range(0,11)
-prior_probs = prior_distn.pdf(x_axis_points)
-fig = plt.figure()
-plt.subplot(211)
-plotPriorDistn(prior_probs, x_axis_points)
-prior_poisson_distn = poisson(getGammaMode(prior_distn))
-poisson_probs = prior_poisson_distn.pmf(x_axis_discrete)
-plt.subplot(212)
-plotPoissonDistn(poisson_probs, x_axis_discrete)
-for i in range(0, x_data.size):
-	posterior_distn = getPosteriorDistn(args.prior_params[0], args.prior_params[1], x_data[:i])
-	posterior_probs = posterior_distn.pdf(x_axis_points)
-	plt.subplot(211)
-	plotPosteriorDistn(posterior_probs, x_axis_points, i+1)
-	post_poisson_distn = poisson(getGammaMode(posterior_distn))
-	post_poisson_probs = post_poisson_distn.pmf(x_axis_discrete)
-	plt.subplot(212)
-	plt.cla()
-	plotPoissonDistn(post_poisson_probs, x_axis_discrete)
-	plt.pause(0.05)
+def iteratePlots(gamma_alpha, gamma_beta, x_data_points, x_axis_points, x_axis_discrete):
+    num_data_points = x_data_points.size
+    posterior_distn = getPosteriorDistn(gamma_alpha, gamma_beta, x_data_points)
+    plt.subplot(211)
+    if num_data_points == 1:
+        plotPosteriorDistn(posterior_distn, x_axis_points, num_data_points, label='posterior pdf')
+    else:
+        plotPosteriorDistn(posterior_distn, x_axis_points, num_data_points)
+    post_poisson_distn = poisson(getGammaMode(posterior_distn))
+    plt.subplot(212)
+    plt.cla()
+    if num_data_points == args.num_data_points-1:
+        plotPoissonDistn(post_poisson_distn, x_axis_discrete, label='MAP estimated pmf')
+    else:
+        plotPoissonDistn(post_poisson_distn, x_axis_discrete)
+    plt.pause(0.05)
+    return posterior_distn
+
+def main():
+    print(dt.datetime.now().isoformat() + ' INFO: ' + 'Starting main function...')
+    print(dt.datetime.now().isoformat() + ' INFO: ' + 'Constructing true distribution...')
+    true_distn = getTrueDistn(args.true_lambda)
+    print(dt.datetime.now().isoformat() + ' INFO: ' + 'Sampling...')
+    x_data = true_distn.rvs(size=args.num_data_points)
+    print(dt.datetime.now().isoformat() + ' INFO: ' + 'Constructing prior distribution...')
+    prior_distn = getPriorDistn(args.prior_params[0], args.prior_params[1])
+    x_axis_points = np.linspace(0, 10, 1000)
+    x_axis_discrete = range(0,11)
+    fig = plt.figure(); plt.tight_layout();
+    plt.subplot(211)
+    print(dt.datetime.now().isoformat() + ' INFO: ' + 'Plotting prior distribution...')
+    plotPriorDistn(prior_distn, x_axis_points)
+    prior_poisson_distn = poisson(getGammaMode(prior_distn))
+    poisson_probs = prior_poisson_distn.pmf(x_axis_discrete)
+    plt.subplot(212)
+    plotPoissonDistn(prior_poisson_distn, x_axis_discrete)
+    print(dt.datetime.now().isoformat() + ' INFO: ' + 'Integrating data and plotting posterior distribution...')
+    iteratePlots(args.prior_params[0], args.prior_params[1], x_data[:0], x_axis_points, x_axis_discrete)
+    for i in range(1, x_data.size):
+    	posterior_distn = iteratePlots(args.prior_params[0], args.prior_params[1], x_data[:i], x_axis_points, x_axis_discrete)
+    print(dt.datetime.now().isoformat() + ' INFO: ' + 'Plotting true distribution...')
+    plotPoissonDistn(true_distn, x_axis_discrete, colour='orange', label='True pmf')
+    plt.tight_layout();plt.legend(); plt.subplot(211); plt.legend();
+    plt.show(block=False)
+    print(dt.datetime.now().isoformat() + ' INFO: ' + 'Done.')
+    print(dt.datetime.now().isoformat() + ' INFO: ' + 'true lambda = ' + str(args.true_lambda))
+    print(dt.datetime.now().isoformat() + ' INFO: ' + 'MAP estimated lambda = ' + str(getGammaMode(posterior_distn)))
+
+if not(args.debug):
+    main()
