@@ -26,7 +26,7 @@ class NormalInverseGamma(object):
         self._lambda = lamda
         self._alpha = alpha
         self._beta = beta
-        self._coef = np.sqrt(self._lambda/2*pi)*np.power(self._beta, self._alpha)/gamma(self._alpha)
+        self._coef = np.sqrt(self._lambda/2*pi)*np.power(self._beta, self._alpha)/gamma(self._alpha) # need to work with logs to avoid overflow here.
 
     def pdf(self, x, sigma_sq): # probability density function
         sigma = np.sqrt(sigma_sq)

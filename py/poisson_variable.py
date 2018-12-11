@@ -18,6 +18,17 @@ parser.add_argument('-n', '--num_data_points', help='The number of data points t
 parser.add_argument('-d', '--debug', help='Enter debug mode.', action='store_true', default=False)
 args = parser.parse_args()
 
+def getXAxesFromLambda(true_lambda):
+    std = np.sqrt(true_lambda)
+    interval_start, interval_end = true_lambda + np.array([-3*std, 3*std])
+    interval_start = np.floor(interval_start).astype(int)
+    interval_end = np.ceil(interval_end).astype(int)
+    if interval_start < 0:
+        interval_start = 0
+    x_axis_points = np.linspace(interval_start, interval_end, 1000)
+    x_axis_discrete = range(interval_start, interval_end+1)
+    return x_axis_points, x_axis_discrete
+
 def getTrueDistn(true_lambda):
     return poisson(true_lambda)
 
@@ -54,16 +65,16 @@ def plotPosteriorDistn(posterior_distn, x_axis_points, num_data_points, **kwargs
     plt.plot(x_axis_points, posterior_probs, 'r', alpha=0.3, **kwargs)
     plt.title('Number of data points used: ' + str(num_data_points))
 
-def iteratePlots(gamma_alpha, gamma_beta, x_data_points, x_axis_points, x_axis_discrete):
+def iteratePlots(gamma_alpha, gamma_beta, x_data_points, x_axis_points, x_axis_discrete, ax_post, ax_poisson):
     num_data_points = x_data_points.size
     posterior_distn = getPosteriorDistn(gamma_alpha, gamma_beta, x_data_points)
-    plt.subplot(211)
+    plt.subplot(ax_post)
     if num_data_points == 1:
         plotPosteriorDistn(posterior_distn, x_axis_points, num_data_points, label='posterior pdf')
     else:
         plotPosteriorDistn(posterior_distn, x_axis_points, num_data_points)
     post_poisson_distn = poisson(getGammaMode(posterior_distn))
-    plt.subplot(212)
+    plt.subplot(ax_poisson)
     plt.cla()
     if num_data_points == args.num_data_points-1:
         plotPoissonDistn(post_poisson_distn, x_axis_discrete, label='MAP estimated pmf')
@@ -80,23 +91,22 @@ def main():
     x_data = true_distn.rvs(size=args.num_data_points)
     print(dt.datetime.now().isoformat() + ' INFO: ' + 'Constructing prior distribution...')
     prior_distn = getPriorDistn(args.prior_params[0], args.prior_params[1])
-    x_axis_points = np.linspace(0, 10, 1000)
-    x_axis_discrete = range(0,11)
+    x_axis_points, x_axis_discrete = getXAxesFromLambda(args.true_lambda)
     fig = plt.figure(); plt.tight_layout();
-    plt.subplot(211)
+    ax_post = plt.subplot(211) # axis for displaying the posterior distns
     print(dt.datetime.now().isoformat() + ' INFO: ' + 'Plotting prior distribution...')
     plotPriorDistn(prior_distn, x_axis_points)
     prior_poisson_distn = poisson(getGammaMode(prior_distn))
     poisson_probs = prior_poisson_distn.pmf(x_axis_discrete)
-    plt.subplot(212)
+    ax_poisson = plt.subplot(212) # axis for displaying the estimated and true Poisson pmfs
     plotPoissonDistn(prior_poisson_distn, x_axis_discrete)
     print(dt.datetime.now().isoformat() + ' INFO: ' + 'Integrating data and plotting posterior distribution...')
-    iteratePlots(args.prior_params[0], args.prior_params[1], x_data[:0], x_axis_points, x_axis_discrete)
+    iteratePlots(args.prior_params[0], args.prior_params[1], x_data[:0], x_axis_points, x_axis_discrete, ax_post, ax_poisson)
     for i in range(1, x_data.size):
-    	posterior_distn = iteratePlots(args.prior_params[0], args.prior_params[1], x_data[:i], x_axis_points, x_axis_discrete)
+    	posterior_distn = iteratePlots(args.prior_params[0], args.prior_params[1], x_data[:i], x_axis_points, x_axis_discrete, ax_post, ax_poisson)
     print(dt.datetime.now().isoformat() + ' INFO: ' + 'Plotting true distribution...')
     plotPoissonDistn(true_distn, x_axis_discrete, colour='orange', label='True pmf')
-    plt.tight_layout();plt.legend(); plt.subplot(211); plt.legend();
+    plt.tight_layout();plt.legend(); plt.subplot(ax_post); plt.legend();
     plt.show(block=False)
     print(dt.datetime.now().isoformat() + ' INFO: ' + 'Done.')
     print(dt.datetime.now().isoformat() + ' INFO: ' + 'true lambda = ' + str(args.true_lambda))
