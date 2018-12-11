@@ -13,7 +13,7 @@ from scipy.stats import poisson, gamma
 
 parser = argparse.ArgumentParser(description='Demonstrate Bayesian inference for the rate of a Poisson distribution.')
 parser.add_argument('-t', '--true_lambda', help='The rate of the Poisson distribution.', type=float, default=5.0)
-parser.add_argument('-p', '--prior_params', help='The parameters of the Gamma distribution ($\alpha, \beta$).', type=float, nargs=2, default=[2.0, 0.5])
+parser.add_argument('-p', '--prior_params', help='The parameters of the Gamma distribution (alpha, beta).', type=float, nargs=2, default=[2.0, 0.5])
 parser.add_argument('-n', '--num_data_points', help='The number of data points to generate and use.', type=int, default=100)
 parser.add_argument('-d', '--debug', help='Enter debug mode.', action='store_true', default=False)
 args = parser.parse_args()
