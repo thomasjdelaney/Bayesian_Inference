@@ -20,7 +20,7 @@ args = parser.parse_args()
 
 def getXAxesFromLambda(true_lambda):
     std = np.sqrt(true_lambda)
-    interval_start, interval_end = true_lambda + np.array([-3*std, 3*std])
+    interval_start, interval_end = true_lambda + np.array([-3*std, 3*std]) # include mass within 3 standard deviations.
     interval_start = np.floor(interval_start).astype(int)
     interval_end = np.ceil(interval_end).astype(int)
     if interval_start < 0:
