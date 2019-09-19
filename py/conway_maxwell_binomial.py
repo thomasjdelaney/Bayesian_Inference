@@ -66,6 +66,7 @@ for nu in args.nu_values:
 plt.legend(fontsize='large')
 plt.xlabel('k', fontsize='large')
 plt.ylabel('P(k)', fontsize='large')
+plt.title('p = ' + str(args.success_prob) + ', num trials = ' + str(args.number_of_trials), fontsize='large')
 plt.tight_layout()
 plt.show(block=False)
 
