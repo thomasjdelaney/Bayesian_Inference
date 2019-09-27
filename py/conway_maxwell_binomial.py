@@ -73,17 +73,43 @@ class ConwayMaxwellBinomialConjugatePrior(object):
 
     def pdf(self, x):
         """
-        Probability Density fuction. 
+        Probability Density fuction. Returns a quantity proportional to p(x).
         Arguments:  self, object.
                     x, 2-d array. 
         Returns:    P(x)
         """
         return np.dot(self.chi, x) - (c * log(factorial(self.m))) + (log(self.con_normaliser))
 
+def paramsToNatural(params):
+    """
+    Transforms the given parameters for the conway-maxwell binomial distribution to the natural parameters.
+    Arguments:  params, 2 element 1-d array, p, nu.
+    Returns:    2 element 1-d array, log(p/(1-p)), nu
+    """
+    p, nu = params
+    return log(p/1-p), nu
+
+def naturalToParams(natural):
+    """
+    Transforms the given natural parameters of the Conway-maxwell binomial distribution into the intuitive parameters.
+    Arguments:  natural, 2 element 1-d array, eta, nu
+    Returns:    2 element 1-d array, 1/(1 + exp(-eta)), nu
+    """
+    eta, nu = natural
+    return 1/(1 + np.exp(-eta)), nu
+
 bernoulli_dist = ConwayMaxwellBinomial(0.5, 1, 1)
 binom_dist = ConwayMaxwellBinomial(0.5, 1, 50)
 over_disp_dist = ConwayMaxwellBinomial(0.5, 0.5, 50)
 under_disp_dist = ConwayMaxwellBinomial(0.5, 1.5, 50)
+
+# need to sample from a distribution
+samples = bernoulli_dist.rvs(size=100)
+# then define the prior parameters
+prior_params = paramsToNatural(0.5, 0) 
+# then define the posterior distribution
+# then maximise the pdf of the posterior
+# the parameters at the mode are what I'm looking for
 
 for nu in args.nu_values:
     com_bin_dist = ConwayMaxwellBinomial(args.success_prob, nu, args.number_of_trials)
