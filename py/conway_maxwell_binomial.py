@@ -104,10 +104,12 @@ over_disp_dist = ConwayMaxwellBinomial(0.5, 0.5, 50)
 under_disp_dist = ConwayMaxwellBinomial(0.5, 1.5, 50)
 
 # need to sample from a distribution
-samples = bernoulli_dist.rvs(size=100)
+m=100
+samples = bernoulli_dist.rvs(size=m)
 # then define the prior parameters
-prior_params = paramsToNatural(0.5, 0) 
+prior_params = [paramsToNatural(0.5, 0),1] 
 # then define the posterior distribution
+posterior_dist = ConwayMaxwellBinomialConjugatePrior([prior_params[0] + samples.mean(), ])
 # then maximise the pdf of the posterior
 # the parameters at the mode are what I'm looking for
 
