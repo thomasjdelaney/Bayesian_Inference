@@ -59,16 +59,26 @@ def plotPosteriorDistn(posterior_probabilities, possible_mu_values, num_data_poi
         plt.plot(possible_mu_values, posterior_probabilities, color=colour, alpha=0.3)
     plt.title('Number of data points used: ' + str(num_data_points))
 
-def getBayesianPosteriorKernelValue(p, bayesian_prior_params, x_data):
-    eta = log(p/(1-p)) if (p != 0) & (p != 1) else 0
+def getExponentialPrior(possible_mu_values, bayesian_prior_params):
+    proportional_values = np.zeros(possible_mu_values.shape)
     chi, nu = bayesian_prior_params
+    for i,p in enumerate(possible_mu_values):
+        eta = log(p/(1-p)) if (p != 0) & (p != 1) else 0
+        data_factor = eta * chi
+        count_factor = nu * log(1 + np.exp(eta))
+        proportional_values[i] = np.exp(data_factor - count_factor)
+    normalised = proportional_values/np.linalg.norm(proportional_values)
+    return normalised
+
+def getBayesianPosteriorKernelValue(p, chi, nu, x_data):
+    eta = log(p/(1-p)) if (p != 0) & (p != 1) else 0
     data_factor = eta * (chi + x_data.sum())
     count_factor = (x_data.shape[0] + nu) * log(1 + np.exp(eta))
     return np.exp(data_factor - count_factor)
 
 def getExponentialPosterior(possible_mu_values, bayesian_prior_params, x_data):
-    proportional_values = np.array([getBayesianPosteriorKernelValue(p, bayesian_prior_params, x_data) for p in possible_mu_values]) 
-    normalised = proportional_values/np.linalg.norm(proportional_values, ord=1)
+    proportional_values = np.array([getBayesianPosteriorKernelValue(p, bayesian_prior_params[0], bayesian_prior_params[1], x_data) for p in possible_mu_values]) 
+    normalised = proportional_values/np.linalg.norm(proportional_values)
     return normalised 
 
 def main():
@@ -81,10 +91,13 @@ def main():
     prior_distn = getPriorDistn(args.prior_params[0], args.prior_params[1])
     possible_mu_values = np.linspace(0, 1, 100)
     prior_probs = prior_distn.pdf(possible_mu_values)
+    prior_exponential_kernel = getExponentialPrior(possible_mu_values, args.bayesian_prior_params)
     print(dt.datetime.now().isoformat() + ' INFO: ' + 'Plotting prior distribution...')
     fig = plt.figure()
     plt.subplot(1,2,1)
     plotPriorDistn(prior_probs, possible_mu_values)
+    plt.subplot(1,2,2)
+    plotPriorDistn(prior_exponential_kernel, possible_mu_values)
     plt.show(block=False)
     print(dt.datetime.now().isoformat() + ' INFO: ' + 'Integrating data and plotting posterior distribution...')
     for i in range(0, x_data.shape[0]):
