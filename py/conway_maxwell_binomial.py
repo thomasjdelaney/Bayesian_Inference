@@ -57,7 +57,7 @@ class ConwayMaxwellBinomial(object):
         return np.random.choice(range(0,self.m + 1), size=size, replace=True, p=list(self.samp_des_dict.values()))
 
 class ConwayMaxwellBinomialConjugatePrior(object):
-    def init(self, chi, c, m):
+    def __init__(self, chi, c, m):
         """
         For initialising a conjugate prior for the Conway-Maxwell binomial distribution. 
         Arguments:  self, object.
@@ -87,7 +87,7 @@ def paramsToNatural(params):
     Returns:    2 element 1-d array, log(p/(1-p)), nu
     """
     p, nu = params
-    return log(p/1-p), nu
+    return log(p/(1-p)), nu
 
 def naturalToParams(natural):
     """
@@ -98,6 +98,17 @@ def naturalToParams(natural):
     eta, nu = natural
     return 1/(1 + np.exp(-eta)), nu
 
+def calculateSecondSufficientStat(samples,m):
+  """
+  For calculating the second sufficient stat for the conway maxwell binomial distribution. k!(m-k)!
+  if samples is an array, sums over the samples.
+  Arguments:  samples, integer or array of integers
+              m, the maximum value of any given sample
+  Returns:    \sum_{i=1}^n k_i! (m - k_i)! where k_i is a sample
+  """
+  samples = np.array([samples]) if np.isscalar(samples) else samples
+  return np.mean([factorial(sample) * factorial(m - sample) for sample in samples])
+
 bernoulli_dist = ConwayMaxwellBinomial(0.5, 1, 1)
 binom_dist = ConwayMaxwellBinomial(0.5, 1, 50)
 over_disp_dist = ConwayMaxwellBinomial(0.5, 0.5, 50)
@@ -107,9 +118,9 @@ under_disp_dist = ConwayMaxwellBinomial(0.5, 1.5, 50)
 m=100
 samples = bernoulli_dist.rvs(size=m)
 # then define the prior parameters
-prior_params = [paramsToNatural(0.5, 0),1] 
+prior_params = [paramsToNatural([0.5, 0]),1] 
 # then define the posterior distribution
-posterior_dist = ConwayMaxwellBinomialConjugatePrior([prior_params[0] + samples.mean(), ])
+posterior_dist = ConwayMaxwellBinomialConjugatePrior([prior_params[0][0] + samples.mean(), prior_params[0][1] + calculateSecondSufficientStat(samples, 1)], 1, 1)
 # then maximise the pdf of the posterior
 # the parameters at the mode are what I'm looking for
 
