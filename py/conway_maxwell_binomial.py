@@ -78,7 +78,7 @@ class ConwayMaxwellBinomialConjugatePrior(object):
                     x, 2-d array. 
         Returns:    P(x)
         """
-        return np.dot(self.chi, x) - (c * log(factorial(self.m))) + (log(self.con_normaliser))
+        return np.dot(self.chi, x) - (self.c * log(factorial(self.m))) + (log(self.con_normaliser))
 
 def paramsToNatural(params):
     """
@@ -107,7 +107,7 @@ def calculateSecondSufficientStat(samples,m):
   Returns:    \sum_{i=1}^n k_i! (m - k_i)! where k_i is a sample
   """
   samples = np.array([samples]) if np.isscalar(samples) else samples
-  return np.mean([factorial(sample) * factorial(m - sample) for sample in samples])
+  return np.sum([factorial(sample) * factorial(m - sample) for sample in samples])
 
 bernoulli_dist = ConwayMaxwellBinomial(0.5, 1, 1)
 binom_dist = ConwayMaxwellBinomial(0.5, 1, 50)
@@ -120,7 +120,7 @@ samples = bernoulli_dist.rvs(size=m)
 # then define the prior parameters
 prior_params = [paramsToNatural([0.5, 0]),1] 
 # then define the posterior distribution
-posterior_dist = ConwayMaxwellBinomialConjugatePrior([prior_params[0][0] + samples.mean(), prior_params[0][1] + calculateSecondSufficientStat(samples, 1)], 1, 1)
+posterior_dist = ConwayMaxwellBinomialConjugatePrior([prior_params[0][0] + samples.sum(), prior_params[0][1] + calculateSecondSufficientStat(samples, 1)], 1, 1)
 # then maximise the pdf of the posterior
 # the parameters at the mode are what I'm looking for
 
