@@ -71,14 +71,14 @@ class ConwayMaxwellBinomialConjugatePrior(object):
         self.m = m
         self.con_normaliser = np.sum([(comb(self.m, i)**self.chi[1]) * np.exp(i*self.chi[0]) / (1 + np.exp(self.chi[0]))**m  for i in range(0, self.m + 1)])
 
-    def pdf(self, x):
+    def kernel(self, x):
         """
-        Probability Density fuction. Returns a quantity proportional to p(x).
+        Kernel of the probability density function. Returns a quantity proportional to p(x).
         Arguments:  self, object.
                     x, 2-d array. 
-        Returns:    P(x)
+        Returns:    value of kernel of P(x)
         """
-        return np.dot(self.chi, x) - (self.c * log(factorial(self.m))) + (log(self.con_normaliser))
+        return np.dot(self.chi, x) - ((self.m * log(1+np.exp(self.chi[0]))) - (self.chi[1] * log(factorial(self.m))) + log(self.con_normaliser))
 
 def paramsToNatural(params):
     """
@@ -87,7 +87,7 @@ def paramsToNatural(params):
     Returns:    2 element 1-d array, log(p/(1-p)), nu
     """
     p, nu = params
-    return log(p/(1-p)), nu
+    return log(p/(1-p)), -nu
 
 def naturalToParams(natural):
     """
@@ -96,7 +96,7 @@ def naturalToParams(natural):
     Returns:    2 element 1-d array, 1/(1 + exp(-eta)), nu
     """
     eta, nu = natural
-    return 1/(1 + np.exp(-eta)), nu
+    return 1/(1 + np.exp(-eta)), -nu
 
 def calculateSecondSufficientStat(samples,m):
   """
@@ -107,7 +107,7 @@ def calculateSecondSufficientStat(samples,m):
   Returns:    \sum_{i=1}^n k_i! (m - k_i)! where k_i is a sample
   """
   samples = np.array([samples]) if np.isscalar(samples) else samples
-  return np.sum([factorial(sample) * factorial(m - sample) for sample in samples])
+  return np.sum([log(factorial(sample))  +  log(factorial(m - sample)) for sample in samples])
 
 bernoulli_dist = ConwayMaxwellBinomial(0.5, 1, 1)
 binom_dist = ConwayMaxwellBinomial(0.5, 1, 50)
@@ -116,11 +116,11 @@ under_disp_dist = ConwayMaxwellBinomial(0.5, 1.5, 50)
 
 # need to sample from a distribution
 m=100
-samples = bernoulli_dist.rvs(size=m)
+samples = binom_dist.rvs(size=m)
 # then define the prior parameters
 prior_params = [paramsToNatural([0.5, 0]),1] 
 # then define the posterior distribution
-posterior_dist = ConwayMaxwellBinomialConjugatePrior([prior_params[0][0] + samples.sum(), prior_params[0][1] + calculateSecondSufficientStat(samples, 1)], 1, 1)
+posterior_dist = ConwayMaxwellBinomialConjugatePrior([prior_params[0][0] + samples.sum(), -(prior_params[0][1] + calculateSecondSufficientStat(samples, 50))], m+1, 50)
 # then maximise the pdf of the posterior
 # the parameters at the mode are what I'm looking for
 
