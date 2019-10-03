@@ -98,20 +98,26 @@ samples = binom_dist.rvs(size=n)
 # then define the prior parameters
 m=50 # technically a parameter of the distributions, but considered known and fixed
 prior_params = [np.array([1, 0.001]),1]
-possible_p_values = np.linspace(0,1, 101)
+possible_p_values = np.linspace(0.01,0.99, 99)
 possible_nu_values = np.linspace(-4, 4, 801)
 
-for p in possible_p_values:
-  kernel_value = conwayMaxwellBinomialPosteriorKernel(np.array([p,1]), prior_params, np.array([samples.sum(), calculateSecondSufficientStat(samples, m)]), m, n)
+kernel_values = np.array([conwayMaxwellBinomialPosteriorKernel(np.array([p,1]), prior_params, np.array([samples.sum(), calculateSecondSufficientStat(samples, m)]), m, n) for p in possible_p_values])
+plt.subplot(1,2,1)
+plt.plot(possible_p_values, kernel_values)
+kernel_values = np.array([conwayMaxwellBinomialPosteriorKernel(np.array([0.5,nu]), prior_params, np.array([samples.sum(), calculateSecondSufficientStat(samples, m)]), m, n) for nu in possible_nu_values])
+plt.subplot(1,2,2)
+plt.plot(possible_nu_values, kernel_values)
 
 
-for nu in args.nu_values:
-    com_bin_dist = ConwayMaxwellBinomial(args.success_prob, nu, args.number_of_trials)
-    plt.plot(range(0,args.number_of_trials + 1), list(com_bin_dist.samp_des_dict.values()), label='nu = ' + str(nu))
-plt.legend(fontsize='large')
-plt.xlabel('k', fontsize='large')
-plt.ylabel('P(k)', fontsize='large')
-plt.title('p = ' + str(args.success_prob) + ', num trials = ' + str(args.number_of_trials), fontsize='large')
-plt.tight_layout()
-plt.show(block=False)
+
+
+#for nu in args.nu_values:
+#    com_bin_dist = ConwayMaxwellBinomial(args.success_prob, nu, args.number_of_trials)
+#    plt.plot(range(0,args.number_of_trials + 1), list(com_bin_dist.samp_des_dict.values()), label='nu = ' + str(nu))
+#plt.legend(fontsize='large')
+#plt.xlabel('k', fontsize='large')
+#plt.ylabel('P(k)', fontsize='large')
+#plt.title('p = ' + str(args.success_prob) + ', num trials = ' + str(args.number_of_trials), fontsize='large')
+#plt.tight_layout()
+#plt.show(block=False)
 
