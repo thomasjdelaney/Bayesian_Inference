@@ -13,7 +13,7 @@ from math import log, factorial
 parser = argparse.ArgumentParser(description='For defining the Conway-Maxwell binomial distribution in a class, calculating some probabilities and taking some samples.')
 parser.add_argument('-p', '--success_prob', help='Probability of success.', type=float, default=0.5)
 parser.add_argument('-n', '--nu_values', help='Values of nu to use.', nargs = '*', default=[1.0, 0.5, 1.5], type=float)
-parser.add_argument('-m', '--number_of_trials', help='Number of trials to use.', default=50, type=int)
+parser.add_argument('-m', '--number_of_bernoulli', help='Number of bernoulli variables to use.', default=50, type=int)
 parser.add_argument('-d', '--debug', help='Enter debug mode.', default=False, action='store_true')
 args = parser.parse_args()
 
@@ -56,48 +56,6 @@ class ConwayMaxwellBinomial(object):
     def rvs(self, size=1):
         return np.random.choice(range(0,self.m + 1), size=size, replace=True, p=list(self.samp_des_dict.values()))
 
-class ConwayMaxwellBinomialConjugatePrior(object):
-    def __init__(self, chi, c, m):
-        """
-        For initialising a conjugate prior for the Conway-Maxwell binomial distribution. 
-        Arguments:  self, object.
-                    chi, 2-d hyperparameters.
-                    c, the count hyperparameter.
-                    m, the number of trials in the Conway-Maxwell distribution
-        Returns:    object
-        """
-        self.chi = chi
-        self.c = c
-        self.m = m
-        self.con_normaliser = np.sum([(comb(self.m, i)**self.chi[1]) * np.exp(i*self.chi[0]) / (1 + np.exp(self.chi[0]))**m  for i in range(0, self.m + 1)])
-
-    def kernel(self, x):
-        """
-        Kernel of the probability density function. Returns a quantity proportional to p(x).
-        Arguments:  self, object.
-                    x, 2-d array. 
-        Returns:    value of kernel of P(x)
-        """
-        return np.dot(self.chi, x) - ((self.m * log(1+np.exp(self.chi[0]))) - (self.chi[1] * log(factorial(self.m))) + log(self.con_normaliser))
-
-def paramsToNatural(params):
-    """
-    Transforms the given parameters for the conway-maxwell binomial distribution to the natural parameters.
-    Arguments:  params, 2 element 1-d array, p, nu.
-    Returns:    2 element 1-d array, log(p/(1-p)), nu
-    """
-    p, nu = params
-    return log(p/(1-p)), -nu
-
-def naturalToParams(natural):
-    """
-    Transforms the given natural parameters of the Conway-maxwell binomial distribution into the intuitive parameters.
-    Arguments:  natural, 2 element 1-d array, eta, nu
-    Returns:    2 element 1-d array, 1/(1 + exp(-eta)), nu
-    """
-    eta, nu = natural
-    return 1/(1 + np.exp(-eta)), -nu
-
 def calculateSecondSufficientStat(samples,m):
   """
   For calculating the second sufficient stat for the conway maxwell binomial distribution. k!(m-k)!
@@ -109,20 +67,43 @@ def calculateSecondSufficientStat(samples,m):
   samples = np.array([samples]) if np.isscalar(samples) else samples
   return np.sum([log(factorial(sample))  +  log(factorial(m - sample)) for sample in samples])
 
+def conwayMaxwellBinomialPosteriorKernel(params, prior_params, suff_stats, m, n):
+  """
+  For calculating the kernel of the posterior distribution of a Conway-Maxwell binomial distribution at parameter values 'params'.
+  Parameters are assumed to be in canonical form, rather than natural.
+  Arguments:  params, 2 element 1-d numpy array (float), the parameter values for the Conway-Maxwell binomial distribution
+              prior_params, 2 element list, first element is 2 element 1-d numpy array (float), second element is int, parameters of the prior distribution
+              suff_stats, 2 element array, sufficient statistics of the Conway-Maxwell binomial distribution, calculated from data, (sum(k_i), sum(log(k_i!(m-k_i!))))
+              m, int, the number of bernoulli variables, considered fixed and known.
+              n, int, number of data points
+  Returns: the kernel value at (p, nu) = params
+  """
+  p, nu = params
+  chi, c = prior_params
+  test_dist = ConwayMaxwellBinomial(p, nu, m)
+  natural_params = np.array([log(p/(1-p)), -nu])
+  total_count = c + n # includes psuedocounts
+  partition_part = log(test_dist.normaliser) - (m*log(1-p)) - (nu*log(factorial(m)))
+  data_part = np.dot(natural_params, chi + suff_stats)
+  return np.exp(data_part - (total_count*partition_part))
+
 bernoulli_dist = ConwayMaxwellBinomial(0.5, 1, 1)
 binom_dist = ConwayMaxwellBinomial(0.5, 1, 50)
 over_disp_dist = ConwayMaxwellBinomial(0.5, 0.5, 50)
 under_disp_dist = ConwayMaxwellBinomial(0.5, 1.5, 50)
 
 # need to sample from a distribution
-m=100
-samples = binom_dist.rvs(size=m)
+n=100
+samples = binom_dist.rvs(size=n)
 # then define the prior parameters
-prior_params = [paramsToNatural([0.5, 0]),1] 
-# then define the posterior distribution
-posterior_dist = ConwayMaxwellBinomialConjugatePrior([prior_params[0][0] + samples.sum(), -(prior_params[0][1] + calculateSecondSufficientStat(samples, 50))], m+1, 50)
-# then maximise the pdf of the posterior
-# the parameters at the mode are what I'm looking for
+m=50 # technically a parameter of the distributions, but considered known and fixed
+prior_params = [np.array([1, 0.001]),1]
+possible_p_values = np.linspace(0,1, 101)
+possible_nu_values = np.linspace(-4, 4, 801)
+
+for p in possible_p_values:
+  kernel_value = conwayMaxwellBinomialPosteriorKernel(np.array([p,1]), prior_params, np.array([samples.sum(), calculateSecondSufficientStat(samples, m)]), m, n)
+
 
 for nu in args.nu_values:
     com_bin_dist = ConwayMaxwellBinomial(args.success_prob, nu, args.number_of_trials)
