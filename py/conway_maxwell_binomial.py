@@ -5,6 +5,7 @@ import os, sys
 if float(sys.version[:3]) < 3.0:
     execfile(os.path.join(os.environ['HOME'], '.pystartup'))
 import argparse
+import warnings
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.special import comb
@@ -30,7 +31,7 @@ class ConwayMaxwellBinomial(object):
         self.p = p
         self.nu = nu
         self.m = m
-        self.normaliser = np.sum([np.exp((self.nu * log(comb(self.m, i))) + (i * log(self.p)) + ((self.m - i) * log(1-self.p))) for i in range(0, self.m + 1)])
+        self.normaliser = self.getNormaliser()
         self.samp_des_dict = self.getSamplingDesignDict()
 
     def pmf(self, k):
@@ -42,7 +43,13 @@ class ConwayMaxwellBinomial(object):
         """
         if (k > self.m) | (k != int(k)):
             raise ValueError("k must be an integer between 0 and m, inclusive")
-        return np.exp((self.nu * log(comb(self.m, k))) + (k*log(self.p)) + ((self.m-k) * log(1-self.p)))/self.normaliser
+        if self.p == 1:
+            p_k = 1 if k == self.m else 0
+        elif self.p == 0:
+            p_k = 1 if k == 0 else 0
+        else:
+            p_k = np.exp((self.nu * log(comb(self.m, k))) + (k*log(self.p)) + ((self.m-k) * log(1-self.p)))/self.normaliser
+        return p_k
     
     def getSamplingDesignDict(self):
         """
@@ -55,6 +62,18 @@ class ConwayMaxwellBinomial(object):
 
     def rvs(self, size=1):
         return np.random.choice(range(0,self.m + 1), size=size, replace=True, p=list(self.samp_des_dict.values()))
+
+    def getNormaliser(self):
+        """
+        For calculating the normalising factor of the distribution.
+        Arguments:  self, the distribution object
+        Returns:    the value of the normalising factor S(p,nu)
+        """
+        if (self.p == 0) | (self.p == 1):
+            warnings.warn("p = " + str(self.p) + " The distribution is deterministic.")
+            return 0
+        else:
+            return np.sum([np.exp((self.nu * log(comb(self.m, i))) + (i * log(self.p)) + ((self.m - i) * log(1-self.p))) for i in range(0, self.m + 1)])
 
 def calculateSecondSufficientStat(samples,m):
   """
@@ -81,9 +100,9 @@ def conwayMaxwellBinomialPosteriorKernel(params, prior_params, suff_stats, m, n)
   p, nu = params
   chi, c = prior_params
   test_dist = ConwayMaxwellBinomial(p, nu, m)
-  natural_params = np.array([log(p/(1-p)), -nu])
+  natural_params = np.array([np.log(p/(1-p)), -nu])
   total_count = c + n # includes psuedocounts
-  partition_part = log(test_dist.normaliser) - (m*log(1-p)) - (nu*log(factorial(m)))
+  partition_part = np.log(test_dist.normaliser) - (m*np.log(1-p)) - (nu*np.log(factorial(m)))
   data_part = np.dot(natural_params, chi + suff_stats)
   return np.exp(data_part - (total_count*partition_part))
 
@@ -98,8 +117,8 @@ samples = binom_dist.rvs(size=n)
 # then define the prior parameters
 m=50 # technically a parameter of the distributions, but considered known and fixed
 prior_params = [np.array([1, 0.001]),1]
-possible_p_values = np.linspace(0.01,0.99, 99)
-possible_nu_values = np.linspace(-4, 4, 801)
+possible_p_values = np.linspace(0,1, 101)
+possible_nu_values = np.linspace(-1, 1, 201)
 
 kernel_values = np.array([conwayMaxwellBinomialPosteriorKernel(np.array([p,1]), prior_params, np.array([samples.sum(), calculateSecondSufficientStat(samples, m)]), m, n) for p in possible_p_values])
 plt.subplot(1,2,1)
@@ -107,9 +126,6 @@ plt.plot(possible_p_values, kernel_values)
 kernel_values = np.array([conwayMaxwellBinomialPosteriorKernel(np.array([0.5,nu]), prior_params, np.array([samples.sum(), calculateSecondSufficientStat(samples, m)]), m, n) for nu in possible_nu_values])
 plt.subplot(1,2,2)
 plt.plot(possible_nu_values, kernel_values)
-
-
-
 
 #for nu in args.nu_values:
 #    com_bin_dist = ConwayMaxwellBinomial(args.success_prob, nu, args.number_of_trials)
