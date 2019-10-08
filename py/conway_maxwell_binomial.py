@@ -10,6 +10,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.special import comb, logit
 from math import log, factorial
+from mpl_toolkits.mplot3d import Axes3D
+from itertools import product
 
 parser = argparse.ArgumentParser(description='For defining the Conway-Maxwell binomial distribution in a class, calculating some probabilities and taking some samples.')
 parser.add_argument('-p', '--params', help='Parameters for the Conway-Maxwell binomial distribution.', type=float, nargs=2, default=[0.5,1.0])
@@ -130,11 +132,11 @@ def conwayMaxwellBinomialPriorKernel(params, a,b,c,m):
     """
     conjugateProprietyTest(a,b,c,m)
     p, nu = params
-    test_dist = ConwayMaxwellBinomial(p,nu)
+    test_dist = ConwayMaxwellBinomial(p,nu,m)
     natural_params = np.array([logit(p), nu])
-    pseudodata_part = np.dot(natural_params, chi)
+    pseudodata_part = np.dot(natural_params, np.array([a,b]))
     partition_part = np.log(test_dist.normaliser) - (nu * getLogFactorial(m)) - (m * np.log(1-p))
-    return np.exp(pseudodata_part - total_count*partition_part)
+    return np.exp(pseudodata_part - c*partition_part)
 
 def conwayMaxwellBinomialPosteriorKernel(params, prior_params, suff_stats, m, n):
     """
@@ -177,21 +179,35 @@ def plotSamples(samples, m):
     plt.xlabel('k'); plt.ylabel('Num Occurances')
     plt.xlim(-0.5,m+0.5)
 
-def plotPriorDistribution():
+def plotPriorDistribution(prior_params, possible_nu_values, m, ax):
     """
     For plotting the prior distribution. Must be a 3-d grid plot.
+    """
+    possible_p_values = np.linspace(0,1, 51)
+    grid_p, grid_nu = np.meshgrid(possible_p_values, possible_nu_values)
+    prior_values = np.zeros(grid_p.shape)
+    for i,j in product(range(grid_p.shape[0]), range(grid_p.shape[1])):
+        prior_values[i,j] = conwayMaxwellBinomialPriorKernel([grid_p[i,j], grid_nu[i,j]], prior_params[0], prior_params[1], prior_params[2], m)
+    surf = ax.plot_surface(grid_p, grid_nu, prior_values)
+    return None
+
+def plotPosteriorDistribution(posterior_params, possible_nu_values, m, ax):
+    """
+    For plotting the posterior distribution. Must be a 3-d plot 
     """
     return None
 
 [p, nu], m = args.params, args.num_bernoulli
 true_distr = ConwayMaxwellBinomial(p, nu, m)
-plt.subplot(1,2,1)
+plt.subplot(1,3,1)
 plotConwayMaxwellPmf(true_distr)
 samples = true_distr.rvs(size=args.num_samples)
-plt.subplot(1,2,2)
+plt.subplot(1,3,2)
 plotSamples(samples,m)
-possible_p_values = np.linspace(0,1, 101)
-possible_nu_values = np.linspace(nu-1, nu+1, 201)
+possible_nu_values = np.linspace(nu-1, nu+1, 101)
+prior_ax = plt.subplot(1,3,3, projection='3d')
+prior_params = np.array([10, calcUpperBound(10,1,m) - 1, 1])
+plotPriorDistribution(prior_params, possible_nu_values, m, prior_ax)
 plt.tight_layout()
 plt.show(block=False)
 #kernel_values = np.array([conwayMaxwellBinomialPosteriorKernel(np.array([p,1.5]), prior_params, np.array([samples.sum(), -calculateSecondSufficientStat(samples, m)]), m, n) for p in possible_p_values])
