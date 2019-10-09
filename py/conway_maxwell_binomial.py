@@ -183,7 +183,7 @@ def plotSamples(samples, m):
     plt.xlabel('k'); plt.ylabel('Num Occurances')
     plt.xlim(-0.5,m+0.5)
 
-def plotPriorDistribution(prior_params, possible_nu_values, m, ax):
+def plotPriorDistribution(prior_params, possible_nu_values, m):
     """
     For plotting the prior distribution. Must be a 3-d grid plot.
     """
@@ -192,10 +192,12 @@ def plotPriorDistribution(prior_params, possible_nu_values, m, ax):
     prior_values = np.zeros(grid_p.shape)
     for i,j in product(range(grid_p.shape[0]), range(grid_p.shape[1])):
         prior_values[i,j] = conwayMaxwellBinomialPriorKernel([grid_p[i,j], grid_nu[i,j]], prior_params[0], prior_params[1], prior_params[2], m)
-    surf = ax.plot_surface(grid_p, grid_nu, prior_values, linewidth=0)
+    plt.contour(grid_p, grid_nu, prior_values)
+    plt.xlabel('p')
+    plt.ylabel(r'$\nu$')
     return None
 
-def plotPosteriorDistribution(prior_params, possible_nu_values, m, samples, ax):
+def plotPosteriorDistribution(prior_params, possible_nu_values, m, samples):
     """
     For plotting the posterior distribution. Must be a 3-d plot 
     """
@@ -206,23 +208,25 @@ def plotPosteriorDistribution(prior_params, possible_nu_values, m, samples, ax):
     posterior_values = np.zeros(grid_p.shape)
     for i,j in product(range(grid_p.shape[0]), range(grid_p.shape[1])):
         posterior_values[i,j] = conwayMaxwellBinomialPosteriorKernel([grid_p[i,j], grid_nu[i,j]], prior_params, suff_stats, m, n)
-    surf = ax.plot_surface(grid_p, grid_nu, posterior_values, linewidth=0)
+    plt.contour(grid_p, grid_nu, posterior_values)
+    plt.xlabel('p')
+    plt.ylabel(r'$\nu$')
     return None
 
 [p, nu], m = args.params, args.num_bernoulli
 true_distr = ConwayMaxwellBinomial(p, nu, m)
-plt.figure(figsize=(10,5))
+plt.figure(figsize=(10,10))
 plt.subplot(2,2,1)
 plotConwayMaxwellPmf(true_distr)
 samples = true_distr.rvs(size=args.num_samples)
 plt.subplot(2,2,2)
 plotSamples(samples,m)
 possible_nu_values = np.linspace(nu-1, nu+1, 101)
-prior_ax = plt.subplot(2,2,3, projection='3d')
-prior_params = np.array([10, calcUpperBound(10,1,m) - 1, 1])
-plotPriorDistribution(prior_params, possible_nu_values, m, prior_ax)
-posterior_ax = plt.subplot(2,2,4, projection='3d')
-plotPosteriorDistribution(prior_params, possible_nu_values, m, samples, posterior_ax)
+plt.subplot(2,2,3)
+prior_params = args.prior_params
+plotPriorDistribution(prior_params, possible_nu_values, m)
+plt.subplot(2,2,4)
+plotPosteriorDistribution(prior_params, possible_nu_values, m, samples)
 plt.tight_layout()
 file_name = os.path.join(image_dir, 'conway_maxwell_binomial_figures.png')
 plt.savefig(file_name) if args.save_fig else plt.show(block=False)
