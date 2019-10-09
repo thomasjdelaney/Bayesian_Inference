@@ -18,8 +18,12 @@ parser.add_argument('-p', '--params', help='Parameters for the Conway-Maxwell bi
 parser.add_argument('-r', '--prior_params', help='Parameters of the conjugate prior distribution', nargs=3, default=[25, -120, 1], type=float)
 parser.add_argument('-m', '--num_bernoulli', help='Number of bernoulli variables to use.', default=50, type=int)
 parser.add_argument('-n', '--num_samples', help='The number of samples to take.', default=50, type=int)
+parser.add_argument('-s', '--save_fig', help='Flag to save the figure instead of showing it.', default=False, action='store_true')
 parser.add_argument('-d', '--debug', help='Enter debug mode.', default=False, action='store_true')
 args = parser.parse_args()
+
+proj_dir = os.path.join(os.environ['SPACE'], 'Bayesian_Inference')
+image_dir = os.path.join(proj_dir, 'images')
 
 class ConwayMaxwellBinomial(object):
     def __init__(self, p, nu, m):
@@ -150,8 +154,8 @@ def conwayMaxwellBinomialPosteriorKernel(params, prior_params, suff_stats, m, n)
     Returns: the kernel value at (p, nu) = params
     """
     p, nu = params
-    chi, c = prior_params
-    a, b = chi
+    a, b, c = prior_params
+    chi = np.array([a, b])
     conjugateProprietyTest(a,b,c,m)
     natural_params = np.array([logit(p), nu])
     data_part = np.dot(natural_params, chi + suff_stats)
@@ -188,28 +192,40 @@ def plotPriorDistribution(prior_params, possible_nu_values, m, ax):
     prior_values = np.zeros(grid_p.shape)
     for i,j in product(range(grid_p.shape[0]), range(grid_p.shape[1])):
         prior_values[i,j] = conwayMaxwellBinomialPriorKernel([grid_p[i,j], grid_nu[i,j]], prior_params[0], prior_params[1], prior_params[2], m)
-    surf = ax.plot_surface(grid_p, grid_nu, prior_values)
+    surf = ax.plot_surface(grid_p, grid_nu, prior_values, linewidth=0)
     return None
 
-def plotPosteriorDistribution(posterior_params, possible_nu_values, m, ax):
+def plotPosteriorDistribution(prior_params, possible_nu_values, m, samples, ax):
     """
     For plotting the posterior distribution. Must be a 3-d plot 
     """
+    possible_p_values = np.linspace(0,1, 51)
+    n = samples.size
+    suff_stats = np.array([samples.sum(), -calculateSecondSufficientStat(samples, m)])
+    grid_p, grid_nu = np.meshgrid(possible_p_values, possible_nu_values)
+    posterior_values = np.zeros(grid_p.shape)
+    for i,j in product(range(grid_p.shape[0]), range(grid_p.shape[1])):
+        posterior_values[i,j] = conwayMaxwellBinomialPosteriorKernel([grid_p[i,j], grid_nu[i,j]], prior_params, suff_stats, m, n)
+    surf = ax.plot_surface(grid_p, grid_nu, posterior_values, linewidth=0)
     return None
 
 [p, nu], m = args.params, args.num_bernoulli
 true_distr = ConwayMaxwellBinomial(p, nu, m)
-plt.subplot(1,3,1)
+plt.figure(figsize=(10,5))
+plt.subplot(2,2,1)
 plotConwayMaxwellPmf(true_distr)
 samples = true_distr.rvs(size=args.num_samples)
-plt.subplot(1,3,2)
+plt.subplot(2,2,2)
 plotSamples(samples,m)
 possible_nu_values = np.linspace(nu-1, nu+1, 101)
-prior_ax = plt.subplot(1,3,3, projection='3d')
+prior_ax = plt.subplot(2,2,3, projection='3d')
 prior_params = np.array([10, calcUpperBound(10,1,m) - 1, 1])
 plotPriorDistribution(prior_params, possible_nu_values, m, prior_ax)
+posterior_ax = plt.subplot(2,2,4, projection='3d')
+plotPosteriorDistribution(prior_params, possible_nu_values, m, samples, posterior_ax)
 plt.tight_layout()
-plt.show(block=False)
+file_name = os.path.join(image_dir, 'conway_maxwell_binomial_figures.png')
+plt.savefig(file_name) if args.save_fig else plt.show(block=False)
 #kernel_values = np.array([conwayMaxwellBinomialPosteriorKernel(np.array([p,1.5]), prior_params, np.array([samples.sum(), -calculateSecondSufficientStat(samples, m)]), m, n) for p in possible_p_values])
 #plt.subplot(1,2,1)
 #plt.plot(possible_p_values, kernel_values)
