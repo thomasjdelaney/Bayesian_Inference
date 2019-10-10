@@ -6,16 +6,18 @@ if float(sys.version[:3]) < 3.0:
     execfile(os.path.join(os.environ['HOME'], '.pystartup'))
 import argparse
 import warnings
+import datetime as dt
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.special import comb, logit
 from math import log, factorial
 from mpl_toolkits.mplot3d import Axes3D
 from itertools import product
+from scipy.stats import norm
+from scipy.optimize import minimize
 
 parser = argparse.ArgumentParser(description='For defining the Conway-Maxwell binomial distribution in a class, calculating some probabilities and taking some samples.')
 parser.add_argument('-p', '--params', help='Parameters for the Conway-Maxwell binomial distribution.', type=float, nargs=2, default=[0.5,1.0])
-parser.add_argument('-r', '--prior_params', help='Parameters of the conjugate prior distribution', nargs=3, default=[25, -120, 1], type=float)
 parser.add_argument('-m', '--num_bernoulli', help='Number of bernoulli variables to use.', default=50, type=int)
 parser.add_argument('-n', '--num_samples', help='The number of samples to take.', default=50, type=int)
 parser.add_argument('-s', '--save_fig', help='Flag to save the figure instead of showing it.', default=False, action='store_true')
@@ -90,6 +92,13 @@ def getLogFactorial(k):
     """
     return np.sum([log(i) for i in range(1, k+1)])
 
+def getSecondHyperparam(m):
+    """
+    Return a value for b that will centre the prior on nu=1.
+    """
+    numerator = -np.sum([calculateSecondSufficientStat(k,m) * comb(m,k) for k in range(0,m+1)])
+    return numerator/(2**m)
+
 def calculateSecondSufficientStat(samples,m):
     """
     For calculating the second sufficient stat for the conway maxwell binomial distribution. k!(m-k)!
@@ -125,65 +134,107 @@ def conjugateProprietyTest(a,b,c,m):
     assert (b/c) < calcUpperBound(a,c,m), "(b/c) > t(floor(a/c)) + (a/c - floor(a/c))(t(ceil(a/c)) - t(floor(a/c)))"
     return None
 
-def conwayMaxwellBinomialPriorKernel(params, a,b,c,m):
+def conwayMaxwellBinomialPriorKernel(com_params, a, b, c, m):
     """
     For calculating the kernel of the conjugate prior of the Conway-Maxwell binomial distribution. 
-    Arguments:  params, p, nu, the parameters of the Conway-Maxwell binomial distribution
+    Arguments:  com_params, p, nu, the parameters of the Conway-Maxwell binomial distribution
                 a, hyperparameter corresponding to the first sufficient stat,
                 b, hyperparameter corresponding to the second sufficient stat,
                 c, hyperparameter corresponding to the pseudocount
+                m, int, the number of bernoulli variables, considered fixed and known
     Returns:    The value of the kernel of the conjugate prior 
     """
     conjugateProprietyTest(a,b,c,m)
-    p, nu = params
-    test_dist = ConwayMaxwellBinomial(p,nu,m)
+    # propriety_dist = norm(0, 1)
+    p, nu = com_params
+    if (p == 1) | (p == 0):
+        return 0
+    test_dist = ConwayMaxwellBinomial(p, nu, m)
     natural_params = np.array([logit(p), nu])
     pseudodata_part = np.dot(natural_params, np.array([a,b]))
     partition_part = np.log(test_dist.normaliser) - (nu * getLogFactorial(m)) - (m * np.log(1-p))
-    return np.exp(pseudodata_part - c*partition_part)
+    # propriety_part = norm.pdf(logit(p)) * norm.pdf(nu - 1)
+    return np.exp(pseudodata_part - c * partition_part)
 
-def conwayMaxwellBinomialPosteriorKernel(params, prior_params, suff_stats, m, n):
+def conwayMaxwellBinomialPosteriorKernel(com_params, a, b, c, suff_stats, m, n):
     """
     For calculating the kernel of the posterior distribution of a Conway-Maxwell binomial distribution at parameter values 'params'.
     Parameters are assumed to be in canonical form, rather than natural.
-    Arguments:  params, 2 element 1-d numpy array (float), the parameter values for the Conway-Maxwell binomial distribution
-                prior_params, 2 element list, first element is 2 element 1-d numpy array (float), second element is int, parameters of the prior distribution
+    Arguments:  com_params, 2 element 1-d numpy array (float), the parameter values for the Conway-Maxwell binomial distribution
+                a, hyperparameter corresponding to the first sufficient stat,
+                b, hyperparameter corresponding to the second sufficient stat,
+                c, hyperparameter corresponding to the pseudocount
                 suff_stats, 2 element array, sufficient statistics of the Conway-Maxwell binomial distribution, calculated from data, (sum(k_i), sum(log(k_i!(m-k_i!))))
                 m, int, the number of bernoulli variables, considered fixed and known.
                 n, int, number of data points
     Returns: the kernel value at (p, nu) = params
     """
-    p, nu = params
-    a, b, c = prior_params
-    chi = np.array([a, b])
+    # propriety_dist = norm(0, 1)
     conjugateProprietyTest(a,b,c,m)
+    p, nu = com_params
+    if (p == 1) | (p == 0):
+        return 0
+    chi = np.array([a, b])
     natural_params = np.array([logit(p), nu])
     data_part = np.dot(natural_params, chi + suff_stats)
-    total_count = c + n # includes psuedocounts
     test_dist = ConwayMaxwellBinomial(p, nu, m)
     partition_part = np.log(test_dist.normaliser) - (nu * getLogFactorial(m)) - (m * np.log(1-p))
-    return np.exp(data_part - total_count*partition_part)
+    # propriety_part = norm.pdf(logit(p)) * norm.pdf(nu - 1)
+    total_count = n + c # includes pseudocounts
+    return np.exp(data_part - total_count * partition_part)
 
-def plotConwayMaxwellPmf(com_dist):
+def conwayMaxwellNegLogLike(params, m, samples):
+    """
+    For calculating the negative log likelihood at p,nu.
+    Arguments:  params: p, 0 <= p <= 1
+                        nu, float, dispersion parameter
+                m, number of bernoulli variables
+                samples, ints between 0 and m, data.
+    Returns:    float, negative log likelihood
+    """
+    p, nu = params
+    if (p == 1) | (p == 0):
+        return np.infty
+    n = samples.size
+    com_dist = ConwayMaxwellBinomial(p, nu, m)
+    p_part = np.log(p/(1-p))*samples.sum()
+    nu_part = nu * calculateSecondSufficientStat(samples,m)
+    partition_part = np.log(com_dist.normaliser) - (nu * getLogFactorial(m)) - (m * np.log(1-p))
+    return -(p_part - nu_part - n * partition_part)
+
+def estimateParams(m, samples):
+    """
+    For estimating the parameters of the Conway-Maxwell binomial distribution from the given samples.
+    Arguments:  m, the number of bernoulli variables being used.
+                samples, ints, between 0 and m
+    Return:     the fitted params, p and nu
+    """
+    bnds = ((0.000001,0.99999999),(-2,2))
+    res = minimize(conwayMaxwellNegLogLike, (0.5, 1), args=(m,samples), bounds=bnds)
+    return res.x
+
+def plotConwayMaxwellPmf(com_dist, **kwargs):
     """
     For plotting the pmf of the given distribution. 
     Arguments:  com_dist, distribution
     Returns:    None
     """
-    plt.plot(range(0, com_dist.m + 1), list(com_dist.samp_des_dict.values()))
+    plt.plot(range(0, com_dist.m + 1), list(com_dist.samp_des_dict.values()), **kwargs)
     plt.xlim(0,com_dist.m)
-    plt.xlabel('k')
-    plt.ylabel('P(k)')
+    plt.xlabel('k', fontsize='large')
+    plt.ylabel('P(k)', fontsize='large')
+    plt.legend(fontsize='large')
 
-def plotSamples(samples, m):
+def plotSamples(samples, m, title=''):
     """
     For plotting a histogram of the samples taken from the true distribution.
     """
     plt.hist(samples, bins=range(0,m+1), align='left')
-    plt.xlabel('k'); plt.ylabel('Num Occurances')
+    plt.xlabel('k', fontsize='large'); plt.ylabel('Num Occurances', fontsize='large')
     plt.xlim(-0.5,m+0.5)
+    plt.title(title, fontsize='large') if title != '' else None
 
-def plotPriorDistribution(prior_params, possible_nu_values, m):
+def plotPriorDistribution(a, b, c, possible_nu_values, m):
     """
     For plotting the prior distribution. Must be a 3-d grid plot.
     """
@@ -191,13 +242,12 @@ def plotPriorDistribution(prior_params, possible_nu_values, m):
     grid_p, grid_nu = np.meshgrid(possible_p_values, possible_nu_values)
     prior_values = np.zeros(grid_p.shape)
     for i,j in product(range(grid_p.shape[0]), range(grid_p.shape[1])):
-        prior_values[i,j] = conwayMaxwellBinomialPriorKernel([grid_p[i,j], grid_nu[i,j]], prior_params[0], prior_params[1], prior_params[2], m)
-    plt.contour(grid_p, grid_nu, prior_values)
-    plt.xlabel('p')
-    plt.ylabel(r'$\nu$')
-    return None
+        prior_values[i,j] = conwayMaxwellBinomialPriorKernel([grid_p[i,j], grid_nu[i,j]], a, b, c, m)
+    plt.contourf(grid_p, grid_nu, prior_values, levels=50)
+    plt.xlabel('p', fontsize='large')
+    plt.ylabel(r'$\nu$', fontsize='large')
 
-def plotPosteriorDistribution(prior_params, possible_nu_values, m, samples):
+def plotPosteriorDistribution(a, b, c, possible_nu_values, m, samples):
     """
     For plotting the posterior distribution. Must be a 3-d plot 
     """
@@ -207,33 +257,46 @@ def plotPosteriorDistribution(prior_params, possible_nu_values, m, samples):
     grid_p, grid_nu = np.meshgrid(possible_p_values, possible_nu_values)
     posterior_values = np.zeros(grid_p.shape)
     for i,j in product(range(grid_p.shape[0]), range(grid_p.shape[1])):
-        posterior_values[i,j] = conwayMaxwellBinomialPosteriorKernel([grid_p[i,j], grid_nu[i,j]], prior_params, suff_stats, m, n)
-    plt.contour(grid_p, grid_nu, posterior_values)
-    plt.xlabel('p')
-    plt.ylabel(r'$\nu$')
-    return None
+        posterior_values[i,j] = conwayMaxwellBinomialPosteriorKernel([grid_p[i,j], grid_nu[i,j]], a, b, c, suff_stats, m, n)
+    plt.contourf(grid_p, grid_nu, posterior_values, levels=50)
+    plt.xlabel('p', fontsize='large')
+    plt.ylabel(r'$\nu$', fontsize='large')
 
-[p, nu], m = args.params, args.num_bernoulli
-true_distr = ConwayMaxwellBinomial(p, nu, m)
-plt.figure(figsize=(10,10))
-plt.subplot(2,2,1)
-plotConwayMaxwellPmf(true_distr)
-samples = true_distr.rvs(size=args.num_samples)
-plt.subplot(2,2,2)
-plotSamples(samples,m)
-possible_nu_values = np.linspace(nu-1, nu+1, 101)
-plt.subplot(2,2,3)
-prior_params = args.prior_params
-plotPriorDistribution(prior_params, possible_nu_values, m)
-plt.subplot(2,2,4)
-plotPosteriorDistribution(prior_params, possible_nu_values, m, samples)
-plt.tight_layout()
-file_name = os.path.join(image_dir, 'conway_maxwell_binomial_figures.png')
-plt.savefig(file_name) if args.save_fig else plt.show(block=False)
-#kernel_values = np.array([conwayMaxwellBinomialPosteriorKernel(np.array([p,1.5]), prior_params, np.array([samples.sum(), -calculateSecondSufficientStat(samples, m)]), m, n) for p in possible_p_values])
-#plt.subplot(1,2,1)
-#plt.plot(possible_p_values, kernel_values)
-#kernel_values = np.array([conwayMaxwellBinomialPosteriorKernel(np.array([0.25,nu]), prior_params, np.array([samples.sum(), -calculateSecondSufficientStat(samples, m)]), m, n) for nu in possible_nu_values])
-#plt.subplot(1,2,2)
-#plt.plot(possible_nu_values, kernel_values)
-#plt.show(block=False)
+def plotLikeSurface(possible_nu_values, m, samples):
+    """
+    For plotting the likelihood surface
+    """
+    possible_p_values = np.linspace(0,1, 51)
+    grid_p, grid_nu = np.meshgrid(possible_p_values, possible_nu_values)
+    likelihood_vals = np.zeros(grid_p.shape)
+    for i,j in product(range(grid_p.shape[0]), range(grid_p.shape[1])):
+        likelihood_vals[i,j] = np.exp(-conwayMaxwellNegLogLike([grid_p[i,j], grid_nu[i,j]], m, samples))
+    plt.contourf(grid_p, grid_nu, likelihood_vals, levels=50)
+    plt.xlabel('p', fontsize='large')
+    plt.ylabel(r'$\nu$', fontsize='large')
+    plt.title('Likelihood surface', fontsize='large')
+
+if (not args.debug) & (__name__ == "__main__"):
+    print(dt.datetime.now().isoformat() + ' INFO: ' + 'Starting main function...')
+    [p, nu], m = args.params, args.num_bernoulli
+    print(dt.datetime.now().isoformat() + ' INFO: ' + 'Creating true distribution...')
+    true_distr = ConwayMaxwellBinomial(p, nu, m)
+    print(dt.datetime.now().isoformat() + ' INFO: ' + 'Sampling...')
+    samples = true_distr.rvs(size=args.num_samples)
+    print(dt.datetime.now().isoformat() + ' INFO: ' + 'Fitting parameters...')
+    est_p, est_nu = estimateParams(m, samples)
+    fitted_dist = ConwayMaxwellBinomial(est_p, est_nu, m)
+    possible_nu_values = np.linspace(nu-1, nu+1, 101)
+    print(dt.datetime.now().isoformat() + ' INFO: ' + 'Plotting...')
+    plt.figure(figsize=(14,5))
+    plt.subplot(1,3,1)
+    plotConwayMaxwellPmf(true_distr, label='True: p=' + str(p) + ', nu=' + str(nu))
+    plotConwayMaxwellPmf(fitted_dist, label='Fitted: p=' + str(np.round(est_p,1)) + ', nu=' + str(np.round(est_nu,1)))
+    plt.subplot(1,3,2)
+    plotSamples(samples, m, 'Samples')
+    plt.subplot(1,3,3)
+    plotLikeSurface(possible_nu_values, m, samples)
+    plt.tight_layout()
+    file_name = os.path.join(image_dir, 'conway_maxwell_binomial_figures.png')
+    plt.savefig(file_name) if args.save_fig else plt.show(block=False)
+    print(dt.datetime.now().isoformat() + ' INFO: ' + 'Done.')
