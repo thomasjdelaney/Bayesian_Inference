@@ -18,6 +18,7 @@ from scipy.optimize import minimize
 
 parser = argparse.ArgumentParser(description='For defining the Conway-Maxwell binomial distribution in a class, calculating some probabilities and taking some samples.')
 parser.add_argument('-p', '--params', help='Parameters for the Conway-Maxwell binomial distribution.', type=float, nargs=2, default=[0.5,1.0])
+parser.add_argument('-r', '--init', help='Initial guess for the paramters when fitting.', type=float, nargs=2, default=[0.05, -0.05])
 parser.add_argument('-m', '--num_bernoulli', help='Number of bernoulli variables to use.', default=50, type=int)
 parser.add_argument('-n', '--num_samples', help='The number of samples to take.', default=50, type=int)
 parser.add_argument('-s', '--save_fig', help='Flag to save the figure instead of showing it.', default=False, action='store_true')
@@ -202,7 +203,7 @@ def conwayMaxwellNegLogLike(params, m, samples):
     partition_part = np.log(com_dist.normaliser) - (nu * getLogFactorial(m)) - (m * np.log(1-p))
     return -(p_part - nu_part - n * partition_part)
 
-def estimateParams(m, samples):
+def estimateParams(m, samples, init):
     """
     For estimating the parameters of the Conway-Maxwell binomial distribution from the given samples.
     Arguments:  m, the number of bernoulli variables being used.
@@ -210,10 +211,10 @@ def estimateParams(m, samples):
     Return:     the fitted params, p and nu
     """
     bnds = ((0.000001,0.99999999),(-2,2))
-    res = minimize(conwayMaxwellNegLogLike, (0.5, 1), args=(m,samples), bounds=bnds)
+    res = minimize(conwayMaxwellNegLogLike, init, args=(m,samples), bounds=bnds)
     return res.x
 
-def plotConwayMaxwellPmf(com_dist, **kwargs):
+def plotConwayMaxwellPmf(com_dist, title='', **kwargs):
     """
     For plotting the pmf of the given distribution. 
     Arguments:  com_dist, distribution
@@ -224,6 +225,7 @@ def plotConwayMaxwellPmf(com_dist, **kwargs):
     plt.xlabel('k', fontsize='large')
     plt.ylabel('P(k)', fontsize='large')
     plt.legend(fontsize='large')
+    plt.title(title, fontsize='large') if title != '' else None
 
 def plotSamples(samples, m, title=''):
     """
@@ -284,13 +286,13 @@ if (not args.debug) & (__name__ == "__main__"):
     print(dt.datetime.now().isoformat() + ' INFO: ' + 'Sampling...')
     samples = true_distr.rvs(size=args.num_samples)
     print(dt.datetime.now().isoformat() + ' INFO: ' + 'Fitting parameters...')
-    est_p, est_nu = estimateParams(m, samples)
+    est_p, est_nu = estimateParams(m, samples, args.init)
     fitted_dist = ConwayMaxwellBinomial(est_p, est_nu, m)
     possible_nu_values = np.linspace(nu-1, nu+1, 101)
     print(dt.datetime.now().isoformat() + ' INFO: ' + 'Plotting...')
     plt.figure(figsize=(14,5))
     plt.subplot(1,3,1)
-    plotConwayMaxwellPmf(true_distr, label='True: p=' + str(p) + ', nu=' + str(nu))
+    plotConwayMaxwellPmf(true_distr, title='Probability Mass Functions', label='True: p=' + str(p) + ', nu=' + str(nu))
     plotConwayMaxwellPmf(fitted_dist, label='Fitted: p=' + str(np.round(est_p,1)) + ', nu=' + str(np.round(est_nu,1)))
     plt.subplot(1,3,2)
     plotSamples(samples, m, 'Samples')
